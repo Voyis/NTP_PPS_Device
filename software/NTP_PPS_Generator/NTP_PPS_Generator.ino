@@ -14,6 +14,9 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <string>
+#include <vector>
+#include <AsyncUDP.h>
 
 #include "secrets.h"
 
@@ -109,6 +112,45 @@ volatile time_t rawtime;
 volatile bool second_changed;
 char ip_address [16];
 
+WiFiServer server (TCP_PORT);
+AsyncUDP udp;
+std::vector <WiFiClient> tcp_clients;
+
+
+/**
+ * Generate ZDA String
+ */
+String generateZDA() {
+  struct tm * timeinfo =  localtime (const_cast<time_t*>(&rawtime));
+  String zda_string;
+  zda_string.reserve(30);
+  zda_string += "$GPZDA," + 
+                 String(timeinfo->tm_hour) + 
+                 String(timeinfo->tm_min) + 
+                 String(timeinfo->tm_sec) + ".000," +
+                 String(timeinfo->tm_mday) + "," +
+                 String(timeinfo->tm_mon) + ", " +
+                 String(timeinfo->tm_year + 1900) + ",00,00*";
+  const char * zda = zda_string.c_str();
+  size_t zda_length (zda_string.length());
+
+  uint8_t checksum = 0;
+  for (auto i = 0; i<zda_length; ++i) {
+    checksum = checksum ^ zda[i];
+  }
+
+  char checkbuf[3];
+  sprintf(checkbuf, "%02X", checksum);
+
+  zda_string += checksum;
+  //zda_string += "\n";
+  
+  return zda_string;
+}
+
+/**
+ * Method for updating the display.
+ */
 void printLocalTime()
 {
   display.clearDisplay();
@@ -122,8 +164,24 @@ void printLocalTime()
   display.print(" UDP: ");
   display.println(String(UDP_PORT).c_str());
   display.display();
+
+  String zda_string = generateZDA();
+  Serial.println(zda_string.c_str());
+  udp.broadcastTo(zda_string.c_str(), UDP_PORT);
+  for (auto it = tcp_clients.begin(); it != tcp_clients.end(); ++it) {
+    if (it->connected()) {
+      it->println(zda_string.c_str());
+    } else {
+      tcp_clients.erase(it);
+      --it;
+    }
+  }
 }
 
+
+/**
+ * Interrupt handler for the 1s interrupt.
+ */
 void IRAM_ATTR onTimer() {
   portENTER_CRITICAL_ISR(&timerMux);
   rawtime += 1; 
@@ -131,7 +189,6 @@ void IRAM_ATTR onTimer() {
   digitalWrite(PPS_OUT_LED, HIGH);
   second_changed = true;
   portEXIT_CRITICAL_ISR(&timerMux);
- 
 }
 
 void setup() {
@@ -193,6 +250,8 @@ void setup() {
   //WiFi.mode(WIFI_OFF);
   delay(2000);
   display.clearDisplay();
+
+  server.begin();
 }
 
 void loop() {
@@ -203,6 +262,11 @@ void loop() {
     delay(100);
     digitalWrite(PPS_OUT_PIN, LOW);
     digitalWrite(PPS_OUT_LED, LOW);
+  }
+
+  WiFiClient client = server.available();
+  if (client) {
+    tcp_clients.push_back(client);
   }
 
   delay(1);
