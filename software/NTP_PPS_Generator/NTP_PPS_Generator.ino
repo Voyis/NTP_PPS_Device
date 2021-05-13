@@ -123,20 +123,21 @@ std::vector <WiFiClient> tcp_clients;
 String generateZDA() {
   struct tm * timeinfo =  localtime (const_cast<time_t*>(&rawtime));
   String zda_string;
-  zda_string.reserve(30);
-  zda_string += "$GPZDA," + 
-                 String(timeinfo->tm_hour) + 
-                 String(timeinfo->tm_min) + 
-                 String(timeinfo->tm_sec) + ".000," +
-                 String(timeinfo->tm_mday) + "," +
-                 String(timeinfo->tm_mon) + ", " +
-                 String(timeinfo->tm_year + 1900) + ",00,00*";
-  const char * zda = zda_string.c_str();
+  zda_string.reserve(50);
+  char buf[50];
+  sprintf(buf, "$GPZDA,%02d%02d%02d.000,%02d,%02d,%04d,00,00*", 
+                  timeinfo->tm_hour, 
+                  timeinfo->tm_min, 
+                  timeinfo->tm_sec,
+                  timeinfo->tm_mday,
+                  timeinfo->tm_mon+1,
+                  timeinfo->tm_year + 1900);
+  zda_string = String(buf);
   size_t zda_length (zda_string.length());
 
   uint8_t checksum = 0;
   for (auto i = 0; i<zda_length; ++i) {
-    checksum = checksum ^ zda[i];
+    checksum = checksum ^ buf[i];
   }
 
   char checkbuf[3];
