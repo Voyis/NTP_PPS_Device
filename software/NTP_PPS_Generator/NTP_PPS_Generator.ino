@@ -160,7 +160,7 @@ void printLocalTime()
   display.println(timeinfo, "%A, %B %d %Y\n   %H:%M:%S UTC\n\n");
   display.println("IP Address: ");
   display.println(ip_address);
-  display.print("Pnorts: \nTCP: ");
+  display.print("Ports: \nTCP: ");
   display.print(String(TCP_PORT).c_str());
   display.print(" UDP: ");
   display.println(String(UDP_PORT).c_str());
@@ -168,7 +168,7 @@ void printLocalTime()
 
   String zda_string = generateZDA();
   Serial.println(zda_string.c_str());
-  udp.broadcastTo(zda_string.c_str(), UDP_PORT);
+  udp.broadcastTo((zda_string + "\n").c_str(), UDP_PORT);
   for (auto it = tcp_clients.begin(); it != tcp_clients.end(); ++it) {
     if (it->connected()) {
       it->println(zda_string.c_str());
