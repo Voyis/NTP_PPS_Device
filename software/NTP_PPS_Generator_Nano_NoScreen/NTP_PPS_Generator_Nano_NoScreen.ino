@@ -17,10 +17,10 @@
 #include <string.h>
 #include <Vector.h>
 #include <SPI.h>
-#include <Ethernet.h>
+#include <Ethernet_Generic.h>
 #include <Time.h>
 #include "TimerInterrupt_Generic.h"
-#include <NTPClient.h>
+#include <NTPClient_Generic.h>
 #include <TimeLib.h>
 
 const char* ntpServer = "192.168.42.18";
@@ -42,7 +42,9 @@ byte subnet[] = { 255, 255, 255, 0 };
 const int TCP_PORT = 6000;
 
 volatile bool second_changed;
+volatile bool enable;
 char ip_address [16];
+
 
 
 EthernetServer server (TCP_PORT);
@@ -133,6 +135,7 @@ void printLocalTime()
     if (tcp_clients[i].connected()) {
       tcp_clients[i].print(gps_string.c_str());
     } else {
+      tcp_clients[i].stop();
       tcp_clients.remove(i);
       --i;
     }
@@ -144,18 +147,21 @@ void printLocalTime()
 // Interrupt handler for the 1s interrupt.
 //
 void onTimer() {
-  digitalWrite(PPS_OUT_PIN, HIGH);
-  digitalWrite(PPS_OUT_LED, HIGH);
+  if(enable){     
+    digitalWrite(PPS_OUT_PIN, HIGH);
+    digitalWrite(PPS_OUT_LED, HIGH);
+  }
   second_changed = true;
 }
 
 void setup() {
+  enable = true;
   Serial.begin(9600);
   pinMode(PPS_OUT_PIN, OUTPUT);
   pinMode(PPS_OUT_LED, OUTPUT);
 
   /// initialize the ethernet device
-  Ethernet.begin(mac, ip, gateway, subnet);
+  Ethernet.begin(mac, ip, gateway, gateway, subnet);
   
   Serial.println(" CONNECTED");
   sprintf(ip_address, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3] );
@@ -179,21 +185,52 @@ void setup() {
   
 }
 
+void(* resetFunc) (void) = 0;
+
 void loop() {
   // put your main code here, to run repeatedly:
   if (second_changed) {
     second_changed = false;
-    printLocalTime();
-    delay(100);
-    digitalWrite(PPS_OUT_PIN, LOW);
-    digitalWrite(PPS_OUT_LED, LOW);
-    static int i = 0;
-    ++i;
+    if(enable){ 
+      delay(100);
+      digitalWrite(PPS_OUT_PIN, LOW);
+      digitalWrite(PPS_OUT_LED, LOW);
+      printLocalTime();
+    }
+
   }
 
   EthernetClient client = server.accept();
   if (client) {
     tcp_clients.push_back(client);
+  }
+
+
+  for (auto i = 0; i < tcp_clients.size(); ++i){
+    if(tcp_clients[i].available()){
+      char c;
+      String cmd = "";
+      do {
+        c = tcp_clients[i].read();
+        if(c != '\n' && c != '\r' && c != -1){
+          cmd += c;
+        }
+      }while(c != '\n');
+      Serial.print("Data: ");
+      Serial.println(cmd);
+      if(cmd == "stop"){
+        digitalWrite(PPS_OUT_PIN, LOW);
+        digitalWrite(PPS_OUT_LED, LOW);
+        pinMode(PPS_OUT_PIN, INPUT);
+        enable = false;
+      } else if (cmd == "start"){
+        pinMode(PPS_OUT_PIN, OUTPUT);
+        enable = true;
+      } else if (cmd == "reset"){
+        resetFunc();
+      }
+      
+    }
   }
    
   delay(1);
