@@ -192,10 +192,10 @@ void loop() {
   if (second_changed) {
     second_changed = false;
     if(enable){ 
+      printLocalTime();
       delay(100);
       digitalWrite(PPS_OUT_PIN, LOW);
       digitalWrite(PPS_OUT_LED, LOW);
-      printLocalTime();
     }
 
   }
