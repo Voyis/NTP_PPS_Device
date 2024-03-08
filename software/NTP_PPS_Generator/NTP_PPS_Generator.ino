@@ -31,8 +31,8 @@ const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 0;
 const int   daylightOffset_sec = 0;
 
-const int PPS_OUT_PIN = 17; //actually gpio 17, but I'm using the DOIT definitions.
-const int PPS_OUT_LED = 16;
+const int PPS_OUT_PIN = 26;
+const int PPS_OUT_LED = 25;
 
 const int TCP_PORT = 5555;
 const int UDP_PORT = 5556;
